@@ -85,7 +85,7 @@ export default function ShelfPage() {
   }, [])
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col" style={{ background: '#1a0f0a' }}>
+    <div className="h-screen w-screen overflow-hidden flex flex-col" style={{ background: '#070b17' }}>
       <Navbar />
 
       {/* Main content area */}
