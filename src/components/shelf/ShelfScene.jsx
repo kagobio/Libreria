@@ -1,150 +1,72 @@
 import React, { useCallback, useMemo, useRef, Suspense } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls, ContactShadows } from '@react-three/drei'
+import { OrbitControls, Grid } from '@react-three/drei'
 import * as THREE from 'three'
 import Bookshelf from './Bookshelf'
 import Book3D from './Book3D'
 
-// ── Lighting ───────────────────────────────────────────────────────────────────
-
 function SceneLighting() {
   return (
     <>
-      {/* Soft cool ambient base */}
-      <ambientLight intensity={0.3} color="#c8d0ff" />
-
-      {/* Main key light — warm, from upper right */}
-      <directionalLight
-        position={[6, 10, 6]}
-        intensity={1.6}
-        color="#fff8f0"
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-far={24}
-        shadow-camera-left={-9}
-        shadow-camera-right={9}
-        shadow-camera-top={7}
-        shadow-camera-bottom={-7}
-      />
-
-      {/* Fill light — cool blue from left */}
-      <pointLight position={[-5, 4, 3]} intensity={0.8} color="#4466ff" />
-
-      {/* Warm accent from below — fireplace / desk lamp glow */}
-      <pointLight position={[0, -1, 3]} intensity={0.4} color="#ff8833" />
-
-      {/* Spotlight on the bookshelf from front-top */}
+      <ambientLight intensity={0.12} color="#1a2440" />
+      <pointLight position={[0, 8, 4]}   intensity={4}   color="#ffffff" />
+      <pointLight position={[-5, 3, 5]}  intensity={1.8} color="#4400ff" />
+      <pointLight position={[5, 3, 5]}   intensity={1.2} color="#00aaff" />
+      <pointLight position={[0, -1, 4]}  intensity={0.6} color="#00d4ff" />
       <spotLight
-        position={[0, 6, 7]}
-        angle={0.35}
-        penumbra={0.8}
-        intensity={1.0}
-        color="#fff5e8"
+        position={[0, 6, 8]}
+        angle={0.38}
+        penumbra={0.9}
+        intensity={2.5}
+        color="#a0c8ff"
         castShadow={false}
       />
     </>
   )
 }
 
-// ── Floating dust particles ────────────────────────────────────────────────────
-
-function DustParticles() {
-  const count = 50
-  const pointsRef = useRef()
-
+function Starfield() {
+  const count = 300
   const positions = useMemo(() => {
     const arr = new Float32Array(count * 3)
     for (let i = 0; i < count; i++) {
-      arr[i * 3 + 0] = (Math.random() - 0.5) * 10   // x spread
-      arr[i * 3 + 1] = (Math.random() - 0.5) * 4    // y spread
-      arr[i * 3 + 2] = (Math.random() - 0.5) * 4    // z spread
+      arr[i * 3]     = (Math.random() - 0.5) * 120
+      arr[i * 3 + 1] = (Math.random() - 0.5) * 80
+      arr[i * 3 + 2] = -20 - Math.random() * 60
     }
     return arr
   }, [])
-
-  // Store per-particle drift params so they're consistent across frames
-  const driftParams = useMemo(() => {
-    const arr = []
-    for (let i = 0; i < count; i++) {
-      arr.push({
-        speedY:   0.04 + Math.random() * 0.06,
-        phaseX:   Math.random() * Math.PI * 2,
-        phaseZ:   Math.random() * Math.PI * 2,
-        ampX:     0.002 + Math.random() * 0.003,
-        ampZ:     0.001 + Math.random() * 0.002,
-        freqX:    0.2  + Math.random() * 0.4,
-        freqZ:    0.15 + Math.random() * 0.3,
-      })
-    }
-    return arr
-  }, [])
-
-  useFrame((state, delta) => {
-    if (!pointsRef.current) return
-    const pos = pointsRef.current.geometry.attributes.position
-    const t   = state.clock.elapsedTime
-
-    for (let i = 0; i < count; i++) {
-      const d  = driftParams[i]
-      let y    = pos.getY(i)
-      y       += d.speedY * delta
-
-      // Reset to bottom when particle drifts above ceiling
-      if (y > 2.5) y = -2.0 + Math.random() * 0.4
-
-      pos.setY(i, y)
-      pos.setX(i, pos.getX(i) + Math.sin(t * d.freqX + d.phaseX) * d.ampX)
-      pos.setZ(i, pos.getZ(i) + Math.sin(t * d.freqZ + d.phaseZ) * d.ampZ)
-    }
-    pos.needsUpdate = true
-  })
 
   return (
-    <points ref={pointsRef}>
+    <points>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          args={[positions, 3]}
-        />
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
-      <pointsMaterial
-        size={0.012}
-        color="#8899ff"
-        transparent
-        opacity={0.35}
-        sizeAttenuation
-        depthWrite={false}
-      />
+      <pointsMaterial size={0.08} color="#aabbff" transparent opacity={0.6} sizeAttenuation depthWrite={false} />
     </points>
   )
 }
 
-// ── Reflective floor ───────────────────────────────────────────────────────────
+function ScanLine() {
+  const ref = useRef()
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({
+    color: '#00d4ff', transparent: true, opacity: 0.06,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  }), [])
 
-function ReflectiveFloor() {
-  const mat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: '#050810',
-        roughness: 0.1,
-        metalness: 0.8,
-      }),
-    []
-  )
+  useFrame(({ clock }) => {
+    if (!ref.current) return
+    const t = clock.elapsedTime
+    ref.current.position.y = -1.5 + ((t * 0.4) % 3.2)
+    ref.current.material.opacity = 0.04 + Math.sin(t * 2) * 0.02
+  })
 
   return (
-    <mesh
-      position={[0, -1.42, -0.5]}
-      rotation={[-Math.PI / 2, 0, 0]}
-      material={mat}
-      receiveShadow
-    >
-      <planeGeometry args={[12, 6]} />
+    <mesh ref={ref} material={mat} rotation={[-Math.PI / 2, 0, 0]}>
+      <planeGeometry args={[10, 0.04]} />
     </mesh>
   )
 }
-
-// ── Books laid out on the shelf ────────────────────────────────────────────────
 
 function BooksOnShelf({ books, selectedBook, onBookClick }) {
   const row1 = useMemo(() => books.slice(0, 8),  [books])
@@ -157,7 +79,7 @@ function BooksOnShelf({ books, selectedBook, onBookClick }) {
   }, [])
 
   const positions = useMemo(
-    () => [...getPositions(row1, 0.575), ...getPositions(row2, -0.625)],
+    () => [...getPositions(row1, 0.58), ...getPositions(row2, -0.62)],
     [row1, row2, getPositions]
   )
 
@@ -176,51 +98,47 @@ function BooksOnShelf({ books, selectedBook, onBookClick }) {
   )
 }
 
-// ── Scene root ─────────────────────────────────────────────────────────────────
-
 export default function ShelfScene({ books, selectedBook, onBookClick }) {
   return (
-    <Canvas
-      camera={{ position: [0, 1.0, 6.2], fov: 48 }}
-      shadows
-      dpr={[1, 2]}
-      style={{ background: '#050810' }}
-    >
-      <color attach="background" args={['#050810']} />
-      <fog attach="fog" args={['#050810', 12, 28]} />
+    <Canvas camera={{ position: [0, 0.5, 7], fov: 52 }} dpr={[1, 2]} style={{ background: '#000814' }}>
+      <color attach="background" args={['#000814']} />
 
       <SceneLighting />
 
       <Suspense fallback={null}>
+        <Starfield />
+
         <group>
           <Bookshelf />
           <BooksOnShelf books={books} selectedBook={selectedBook} onBookClick={onBookClick} />
         </group>
 
-        <ReflectiveFloor />
+        <ScanLine />
 
-        <ContactShadows
-          position={[0, -1.42, 0]}
-          opacity={0.65}
-          scale={14}
-          blur={3.0}
-          far={3.5}
-          color="#000030"
+        <Grid
+          position={[0, -1.48, 0]}
+          cellSize={0.5}
+          cellThickness={0.4}
+          cellColor="#0a1a35"
+          sectionSize={2.5}
+          sectionThickness={0.8}
+          sectionColor="#003366"
+          fadeDistance={22}
+          fadeStrength={1.8}
+          followCamera={false}
+          infiniteGrid
         />
-
-        <DustParticles />
       </Suspense>
 
       <OrbitControls
-        minPolarAngle={Math.PI / 4}
-        maxPolarAngle={Math.PI / 1.8}
+        minPolarAngle={Math.PI / 5}
+        maxPolarAngle={Math.PI / 2.2}
         minDistance={3}
-        maxDistance={10}
+        maxDistance={12}
         enablePan={false}
-        dampingFactor={0.05}
+        dampingFactor={0.04}
         enableDamping
-        autoRotate={false}
-        rotateSpeed={0.6}
+        rotateSpeed={0.5}
       />
     </Canvas>
   )
