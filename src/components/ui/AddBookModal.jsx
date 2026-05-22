@@ -53,7 +53,7 @@ export default function AddBookModal({ onClose, onBookAdded }) {
     setSuggestions([])
     try {
       const res = await fetch(
-        `https://openlibrary.org/search.json?title=${encodeURIComponent(search.trim())}&limit=8&fields=key,title,author_name,subject,cover_i,first_sentence`
+        `https://openlibrary.org/search.json?q=${encodeURIComponent(search.trim())}&limit=8&fields=key,title,author_name,subject,cover_i,first_sentence`
       )
       if (!res.ok) throw new Error(`Error ${res.status}`)
       const data = await res.json()
@@ -146,7 +146,7 @@ export default function AddBookModal({ onClose, onBookAdded }) {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), doSearch())}
-                placeholder="Escribe el título..."
+                placeholder="Título, autor o ambos..."
                 className={inputClass}
                 style={{ ...inputStyle, flex: 1 }}
               />
