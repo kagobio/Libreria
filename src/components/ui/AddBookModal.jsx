@@ -35,7 +35,7 @@ export default function AddBookModal({ onClose, onBookAdded }) {
   const [search, setSearch] = useState('')
   const [suggestions, setSuggestions] = useState([])
   const [searchLoading, setSearchLoading] = useState(false)
-  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [searchError, setSearchError] = useState('')
   const [title, setTitle] = useState('')
   const [author, setAuthor] = useState('')
   const [genre, setGenre] = useState('')
@@ -46,24 +46,27 @@ export default function AddBookModal({ onClose, onBookAdded }) {
   const [error, setError] = useState('')
   const searchRef = useRef(null)
 
-  useEffect(() => {
-    if (!search || search.length < 2) { setSuggestions([]); setShowSuggestions(false); return }
-    const timer = setTimeout(async () => {
-      setSearchLoading(true)
-      try {
-        const res = await fetch(
-          `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(search)}&maxResults=6`
-        )
-        const data = await res.json()
-        setSuggestions(data.items || [])
-        setShowSuggestions(true)
-      } catch {
-        setSuggestions([])
-      } finally {
-        setSearchLoading(false)
+  const doSearch = useCallback(async () => {
+    if (!search.trim() || search.length < 2) return
+    setSearchLoading(true)
+    setSearchError('')
+    setSuggestions([])
+    try {
+      const res = await fetch(
+        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(search.trim())}&maxResults=8`
+      )
+      if (!res.ok) throw new Error(`Error ${res.status}`)
+      const data = await res.json()
+      if (!data.items || data.items.length === 0) {
+        setSearchError('No se encontraron resultados. Prueba otro título.')
+      } else {
+        setSuggestions(data.items)
       }
-    }, 350)
-    return () => clearTimeout(timer)
+    } catch (e) {
+      setSearchError(`Error al buscar: ${e.message}`)
+    } finally {
+      setSearchLoading(false)
+    }
   }, [search])
 
   const selectSuggestion = useCallback((item) => {
@@ -75,7 +78,8 @@ export default function AddBookModal({ onClose, onBookAdded }) {
     const thumb = info.imageLinks?.thumbnail?.replace('http://', 'https://') || null
     setCoverUrl(thumb)
     setSearch('')
-    setShowSuggestions(false)
+    setSuggestions([])
+    setSearchError('')
   }, [])
 
   const handleSubmit = useCallback(async (e) => {
@@ -132,28 +136,33 @@ export default function AddBookModal({ onClose, onBookAdded }) {
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto panel-scroll">
           {/* Book search */}
-          <div className="relative" ref={searchRef}>
+          <div ref={searchRef}>
             <label className={labelClass}>Buscar libro</label>
-            <div className="relative">
+            <div className="flex gap-2">
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Escribe el título para buscar..."
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), doSearch())}
+                placeholder="Escribe el título..."
                 className={inputClass}
-                style={inputStyle}
-                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                style={{ ...inputStyle, flex: 1 }}
               />
-              {searchLoading && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={doSearch}
+                disabled={searchLoading || search.length < 2}
+                className="px-4 rounded-xl text-sm font-medium text-white disabled:opacity-50 transition-all flex-shrink-0"
+                style={{ background: '#4f46e5' }}
+              >
+                {searchLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : 'Buscar'}
+              </button>
             </div>
 
-            {/* Suggestions inline */}
-            {searchLoading && (
-              <p className="text-indigo-400 text-xs mt-2 animate-pulse">Buscando...</p>
+            {searchError && (
+              <p className="text-red-400 text-xs mt-2">{searchError}</p>
             )}
             {suggestions.length > 0 && (
               <div className="mt-2 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(99,102,241,0.3)' }}>
