@@ -53,14 +53,14 @@ export default function AddBookModal({ onClose, onBookAdded }) {
     setSuggestions([])
     try {
       const res = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(search.trim())}&maxResults=8`
+        `https://openlibrary.org/search.json?title=${encodeURIComponent(search.trim())}&limit=8&fields=key,title,author_name,subject,cover_i,first_sentence`
       )
       if (!res.ok) throw new Error(`Error ${res.status}`)
       const data = await res.json()
-      if (!data.items || data.items.length === 0) {
+      if (!data.docs || data.docs.length === 0) {
         setSearchError('No se encontraron resultados. Prueba otro título.')
       } else {
-        setSuggestions(data.items)
+        setSuggestions(data.docs)
       }
     } catch (e) {
       setSearchError(`Error al buscar: ${e.message}`)
@@ -70,12 +70,14 @@ export default function AddBookModal({ onClose, onBookAdded }) {
   }, [search])
 
   const selectSuggestion = useCallback((item) => {
-    const info = item.volumeInfo
-    setTitle(info.title || '')
-    setAuthor(info.authors?.[0] || '')
-    setGenre(mapGoogleGenre(info.categories))
-    setDescription(info.description ? info.description.slice(0, 600) : '')
-    const thumb = info.imageLinks?.thumbnail?.replace('http://', 'https://') || null
+    setTitle(item.title || '')
+    setAuthor(item.author_name?.[0] || '')
+    setGenre(mapGoogleGenre(item.subject))
+    const desc = item.first_sentence?.value || item.first_sentence || ''
+    setDescription(typeof desc === 'string' ? desc.slice(0, 600) : '')
+    const thumb = item.cover_i
+      ? `https://covers.openlibrary.org/b/id/${item.cover_i}-M.jpg`
+      : null
     setCoverUrl(thumb)
     setSearch('')
     setSuggestions([])
@@ -166,12 +168,13 @@ export default function AddBookModal({ onClose, onBookAdded }) {
             )}
             {suggestions.length > 0 && (
               <div className="mt-2 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(99,102,241,0.3)' }}>
-                {suggestions.map((item) => {
-                  const info = item.volumeInfo
-                  const thumb = info.imageLinks?.thumbnail?.replace('http://', 'https://')
+                {suggestions.map((item, i) => {
+                  const thumb = item.cover_i
+                    ? `https://covers.openlibrary.org/b/id/${item.cover_i}-S.jpg`
+                    : null
                   return (
                     <button
-                      key={item.id}
+                      key={item.key || i}
                       type="button"
                       onClick={() => selectSuggestion(item)}
                       className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
@@ -183,8 +186,8 @@ export default function AddBookModal({ onClose, onBookAdded }) {
                         <div className="w-9 h-12 rounded flex-shrink-0 flex items-center justify-center text-lg" style={{ background: '#1a2235' }}>📖</div>
                       )}
                       <div className="min-w-0">
-                        <p className="text-slate-200 text-sm font-medium truncate">{info.title}</p>
-                        <p className="text-slate-500 text-xs truncate">{info.authors?.join(', ') || 'Autor desconocido'}</p>
+                        <p className="text-slate-200 text-sm font-medium truncate">{item.title}</p>
+                        <p className="text-slate-500 text-xs truncate">{item.author_name?.join(', ') || 'Autor desconocido'}</p>
                       </div>
                     </button>
                   )
