@@ -1,17 +1,6 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-
-const PRESET_COLORS = [
-  { value: '#8B2020', label: 'Rojo' },
-  { value: '#1E3A8A', label: 'Azul' },
-  { value: '#1A5C2A', label: 'Verde' },
-  { value: '#4A1A6B', label: 'Morado' },
-  { value: '#8B4A1A', label: 'Naranja' },
-  { value: '#5C3A1A', label: 'Marrón' },
-  { value: '#0F2040', label: 'Marino' },
-  { value: '#1A3A1A', label: 'Bosque' },
-]
 
 const GENRES = [
   { value: '', label: 'Seleccionar género (opcional)' },
@@ -24,27 +13,77 @@ const GENRES = [
   { value: 'other', label: 'Otro' },
 ]
 
+const PRESET_COLORS = [
+  '#8B2020', '#1E3A8A', '#1A5C2A', '#4A1A6B',
+  '#8B4A1A', '#0F2040', '#1A3A1A', '#6B1A3A',
+]
+
+function mapGoogleGenre(categories) {
+  if (!categories?.length) return ''
+  const c = categories[0].toLowerCase()
+  if (c.includes('fiction') && (c.includes('science') || c.includes('sci'))) return 'scifi'
+  if (c.includes('fantasy')) return 'fantasy'
+  if (c.includes('fiction')) return 'fiction'
+  if (c.includes('history')) return 'history'
+  if (c.includes('biograph')) return 'biography'
+  if (c.includes('nonfiction') || c.includes('non-fiction')) return 'nonfiction'
+  return 'other'
+}
+
 export default function AddBookModal({ onClose, onBookAdded }) {
   const { user } = useAuth()
+  const [search, setSearch] = useState('')
+  const [suggestions, setSuggestions] = useState([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
   const [title, setTitle] = useState('')
   const [author, setAuthor] = useState('')
   const [genre, setGenre] = useState('')
   const [description, setDescription] = useState('')
-  const [spineColor, setSpineColor] = useState('#8B2020')
+  const [spineColor, setSpineColor] = useState(PRESET_COLORS[0])
+  const [coverUrl, setCoverUrl] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const searchRef = useRef(null)
+
+  useEffect(() => {
+    if (!search || search.length < 2) { setSuggestions([]); setShowSuggestions(false); return }
+    const timer = setTimeout(async () => {
+      setSearchLoading(true)
+      try {
+        const res = await fetch(
+          `https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(search)}&maxResults=6&langRestrict=es,en`
+        )
+        const data = await res.json()
+        setSuggestions(data.items || [])
+        setShowSuggestions(true)
+      } catch {
+        setSuggestions([])
+      } finally {
+        setSearchLoading(false)
+      }
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  const selectSuggestion = useCallback((item) => {
+    const info = item.volumeInfo
+    setTitle(info.title || '')
+    setAuthor(info.authors?.[0] || '')
+    setGenre(mapGoogleGenre(info.categories))
+    setDescription(info.description ? info.description.slice(0, 600) : '')
+    const thumb = info.imageLinks?.thumbnail?.replace('http://', 'https://') || null
+    setCoverUrl(thumb)
+    setSearch('')
+    setShowSuggestions(false)
+  }, [])
 
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault()
-    if (!title.trim() || !author.trim()) {
-      setError('El título y el autor son obligatorios')
-      return
-    }
+    if (!title.trim() || !author.trim()) { setError('El título y el autor son obligatorios'); return }
     if (!user || !supabase) return
-
     setLoading(true)
     setError('')
-
     try {
       const { data, error: insertError } = await supabase
         .from('books')
@@ -54,182 +93,166 @@ export default function AddBookModal({ onClose, onBookAdded }) {
           genre: genre || null,
           description: description.trim() || null,
           spine_color: spineColor,
+          cover_url: coverUrl,
           added_by: user.id,
         })
         .select()
         .single()
-
       if (insertError) throw insertError
-
       onBookAdded?.(data)
       onClose()
     } catch (err) {
       setError(err.message || 'Error al añadir el libro')
-      console.error(err)
     } finally {
       setLoading(false)
     }
-  }, [title, author, genre, description, spineColor, user, onClose, onBookAdded])
+  }, [title, author, genre, description, spineColor, coverUrl, user, onClose, onBookAdded])
+
+  const panelStyle = { background: '#0d1221', border: '1px solid rgba(99,102,241,0.2)', boxShadow: '0 25px 60px rgba(0,0,0,0.7)' }
+  const inputStyle = { background: '#121929', border: '1px solid rgba(99,102,241,0.2)', color: '#e2e8f0' }
+  const inputClass = 'w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all'
+  const labelClass = 'block text-slate-400 text-xs uppercase tracking-wider mb-1.5'
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
+      style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)' }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div
-        className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl"
-        style={{
-          background: '#1f1509',
-          border: '1px solid rgba(139, 105, 20, 0.3)',
-          boxShadow: '0 25px 60px rgba(0,0,0,0.7)',
-        }}
-      >
+      <div className="w-full max-w-md rounded-2xl overflow-hidden" style={panelStyle}>
         {/* Header */}
-        <div
-          className="flex items-center justify-between px-6 py-4"
-          style={{ borderBottom: '1px solid rgba(139, 105, 20, 0.2)' }}
-        >
-          <h2 className="text-amber-300 font-serif text-xl font-semibold">
-            Añadir libro
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-amber-700 hover:text-amber-400 transition-colors"
-          >
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid rgba(99,102,241,0.15)' }}>
+          <h2 className="font-serif text-lg font-semibold" style={{ color: '#a5b4fc' }}>Añadir libro</h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
               <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
             </svg>
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto panel-scroll">
-          {/* Title */}
-          <div>
-            <label className="block text-amber-400 text-sm mb-1">
-              Título <span className="text-amber-600">*</span>
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ej: Cien años de soledad"
-              required
-              maxLength={200}
-              className="w-full bg-dark-300 border border-amber-900 rounded-lg px-4 py-2.5 text-amber-100 placeholder-amber-800 text-sm focus:outline-none focus:border-amber-600 transition-colors"
-            />
-          </div>
-
-          {/* Author */}
-          <div>
-            <label className="block text-amber-400 text-sm mb-1">
-              Autor <span className="text-amber-600">*</span>
-            </label>
-            <input
-              type="text"
-              value={author}
-              onChange={(e) => setAuthor(e.target.value)}
-              placeholder="Ej: Gabriel García Márquez"
-              required
-              maxLength={200}
-              className="w-full bg-dark-300 border border-amber-900 rounded-lg px-4 py-2.5 text-amber-100 placeholder-amber-800 text-sm focus:outline-none focus:border-amber-600 transition-colors"
-            />
-          </div>
-
-          {/* Genre */}
-          <div>
-            <label className="block text-amber-400 text-sm mb-1">Género</label>
-            <select
-              value={genre}
-              onChange={(e) => setGenre(e.target.value)}
-              className="w-full bg-dark-300 border border-amber-900 rounded-lg px-4 py-2.5 text-amber-100 text-sm focus:outline-none focus:border-amber-600 transition-colors appearance-none"
-              style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%23d97706' viewBox='0 0 20 20'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E\")", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '16px', paddingRight: '36px' }}
-            >
-              {GENRES.map((g) => (
-                <option key={g.value} value={g.value} style={{ background: '#1f1509' }}>
-                  {g.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-amber-400 text-sm mb-1">Descripción</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Una breve descripción del libro (opcional)..."
-              rows={3}
-              maxLength={1000}
-              className="w-full bg-dark-300 border border-amber-900 rounded-lg px-4 py-2.5 text-amber-100 placeholder-amber-800 text-sm focus:outline-none focus:border-amber-600 transition-colors resize-none"
-            />
-          </div>
-
-          {/* Spine Color */}
-          <div>
-            <label className="block text-amber-400 text-sm mb-2">Color del lomo</label>
-            <div className="flex gap-2 flex-wrap">
-              {PRESET_COLORS.map((color) => (
-                <button
-                  key={color.value}
-                  type="button"
-                  onClick={() => setSpineColor(color.value)}
-                  title={color.label}
-                  className="rounded-full transition-transform hover:scale-110 focus:outline-none"
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    background: color.value,
-                    border: spineColor === color.value
-                      ? '2px solid #fbbf24'
-                      : '2px solid transparent',
-                    boxShadow: spineColor === color.value
-                      ? '0 0 0 2px rgba(251,191,36,0.4), 0 2px 8px rgba(0,0,0,0.4)'
-                      : '0 2px 6px rgba(0,0,0,0.3)',
-                  }}
-                />
-              ))}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto panel-scroll">
+          {/* Book search */}
+          <div className="relative" ref={searchRef}>
+            <label className={labelClass}>Buscar libro</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Escribe el título para buscar..."
+                className={inputClass}
+                style={inputStyle}
+                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+              />
+              {searchLoading && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
             </div>
 
-            {/* Preview */}
-            <div className="mt-3 flex items-center gap-3">
+            {/* Suggestions dropdown */}
+            {showSuggestions && suggestions.length > 0 && (
               <div
-                className="rounded flex items-center justify-center text-white text-xs font-bold"
-                style={{
-                  width: '30px',
-                  height: '46px',
-                  background: spineColor,
-                  boxShadow: '2px 2px 8px rgba(0,0,0,0.4)',
-                }}
+                className="absolute z-10 w-full mt-1 rounded-xl overflow-hidden shadow-2xl"
+                style={{ background: '#121929', border: '1px solid rgba(99,102,241,0.3)', maxHeight: '260px', overflowY: 'auto' }}
               >
-                📖
+                {suggestions.map((item) => {
+                  const info = item.volumeInfo
+                  const thumb = info.imageLinks?.thumbnail?.replace('http://', 'https://')
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => selectSuggestion(item)}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-indigo-900 hover:bg-opacity-30 transition-colors"
+                      style={{ borderBottom: '1px solid rgba(99,102,241,0.1)' }}
+                    >
+                      {thumb ? (
+                        <img src={thumb} alt="" className="w-9 h-12 object-cover rounded flex-shrink-0" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }} />
+                      ) : (
+                        <div className="w-9 h-12 rounded flex-shrink-0 flex items-center justify-center text-lg" style={{ background: '#1a2235' }}>📖</div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-slate-200 text-sm font-medium truncate">{info.title}</p>
+                        <p className="text-slate-500 text-xs truncate">{info.authors?.join(', ') || 'Autor desconocido'}</p>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
-              <span className="text-amber-700 text-xs">Vista previa del lomo</span>
+            )}
+          </div>
+
+          {/* Cover preview if selected from search */}
+          {coverUrl && (
+            <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: '#121929', border: '1px solid rgba(99,102,241,0.15)' }}>
+              <img src={coverUrl} alt="Portada" className="w-12 h-16 object-cover rounded shadow-lg" />
+              <div>
+                <p className="text-slate-300 text-sm font-medium">{title}</p>
+                <p className="text-slate-500 text-xs">{author}</p>
+              </div>
+              <button type="button" onClick={() => setCoverUrl(null)} className="ml-auto text-slate-600 hover:text-slate-400 text-xs">✕</button>
+            </div>
+          )}
+
+          <div style={{ borderTop: '1px solid rgba(99,102,241,0.1)', paddingTop: '12px' }}>
+            <p className="text-slate-500 text-xs mb-4">O rellena los datos manualmente:</p>
+
+            <div className="space-y-4">
+              <div>
+                <label className={labelClass}>Título <span className="text-indigo-500">*</span></label>
+                <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej: Cien años de soledad" required maxLength={200} className={inputClass} style={inputStyle} />
+              </div>
+              <div>
+                <label className={labelClass}>Autor <span className="text-indigo-500">*</span></label>
+                <input type="text" value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="Ej: Gabriel García Márquez" required maxLength={200} className={inputClass} style={inputStyle} />
+              </div>
+              <div>
+                <label className={labelClass}>Género</label>
+                <select value={genre} onChange={(e) => setGenre(e.target.value)} className={inputClass} style={{ ...inputStyle, appearance: 'none' }}>
+                  {GENRES.map((g) => <option key={g.value} value={g.value} style={{ background: '#121929' }}>{g.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Descripción</label>
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Una breve descripción (opcional)..." rows={3} maxLength={1000} className={inputClass} style={{ ...inputStyle, resize: 'none' }} />
+              </div>
+
+              {/* Spine color */}
+              <div>
+                <label className={labelClass}>Color del lomo</label>
+                <div className="flex gap-2 flex-wrap">
+                  {PRESET_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setSpineColor(color)}
+                      className="rounded-full transition-transform hover:scale-110"
+                      style={{
+                        width: '30px', height: '30px',
+                        background: color,
+                        border: spineColor === color ? '2px solid #818cf8' : '2px solid transparent',
+                        boxShadow: spineColor === color ? '0 0 0 2px rgba(99,102,241,0.4)' : '0 2px 4px rgba(0,0,0,0.4)',
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
           {error && (
-            <div className="bg-red-900 bg-opacity-30 border border-red-700 rounded-lg px-4 py-2.5 text-red-300 text-sm">
+            <div className="rounded-xl px-4 py-3 text-red-300 text-sm" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
               {error}
             </div>
           )}
 
-          {/* Buttons */}
           <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 border border-amber-800 text-amber-500 hover:text-amber-300 hover:border-amber-600 py-2.5 rounded-lg text-sm font-medium transition-colors"
-            >
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors" style={{ border: '1px solid rgba(99,102,241,0.2)' }}>
               Cancelar
             </button>
-            <button
-              type="submit"
-              disabled={loading || !title.trim() || !author.trim()}
-              className="flex-1 bg-amber-700 hover:bg-amber-600 disabled:bg-amber-900 disabled:cursor-not-allowed text-amber-100 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-lg"
-            >
+            <button type="submit" disabled={loading || !title.trim() || !author.trim()} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: '#4f46e5', boxShadow: '0 4px 15px rgba(79,70,229,0.3)' }}>
               {loading ? 'Añadiendo...' : 'Añadir libro'}
             </button>
           </div>

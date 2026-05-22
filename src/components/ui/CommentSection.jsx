@@ -22,155 +22,88 @@ export default function CommentSection({ bookId }) {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const commentsEndRef = useRef(null)
+  const endRef = useRef(null)
 
-  const fetchProfiles = useCallback(async (userIds) => {
-    if (!supabase || !userIds.length) return
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, username')
-      .in('id', userIds)
-    if (data) {
-      const map = {}
-      data.forEach((p) => { map[p.id] = p.username })
-      setProfiles((prev) => ({ ...prev, ...map }))
-    }
+  const fetchProfiles = useCallback(async (ids) => {
+    if (!supabase || !ids.length) return
+    const { data } = await supabase.from('profiles').select('id, username').in('id', ids)
+    if (data) setProfiles((p) => { const m = { ...p }; data.forEach((r) => { m[r.id] = r.username }); return m })
   }, [])
 
   const fetchComments = useCallback(async () => {
     if (!supabase) return
     setLoading(true)
     try {
-      const { data, error: fetchError } = await supabase
-        .from('comments')
-        .select('*')
-        .eq('book_id', bookId)
-        .order('created_at', { ascending: true })
-
-      if (fetchError) throw fetchError
+      const { data } = await supabase.from('comments').select('*').eq('book_id', bookId).order('created_at', { ascending: true })
       setComments(data || [])
-
-      const userIds = [...new Set((data || []).map((c) => c.user_id))]
-      await fetchProfiles(userIds)
-    } catch (err) {
-      console.error('Error fetching comments:', err)
-    } finally {
-      setLoading(false)
-    }
+      await fetchProfiles([...new Set((data || []).map((c) => c.user_id))])
+    } finally { setLoading(false) }
   }, [bookId, fetchProfiles])
 
   useEffect(() => {
     fetchComments()
-
     if (!supabase) return
-
-    const subscription = supabase
-      .channel(`comments:book_id=eq.${bookId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'comments', filter: `book_id=eq.${bookId}` },
-        async (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const newCom = payload.new
-            setComments((prev) => [...prev, newCom])
-            if (!profiles[newCom.user_id]) {
-              await fetchProfiles([newCom.user_id])
-            }
-          } else if (payload.eventType === 'DELETE') {
-            setComments((prev) => prev.filter((c) => c.id !== payload.old.id))
-          }
+    const sub = supabase
+      .channel(`comments:${bookId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comments', filter: `book_id=eq.${bookId}` }, async (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setComments((p) => [...p, payload.new])
+          if (!profiles[payload.new.user_id]) await fetchProfiles([payload.new.user_id])
+        } else if (payload.eventType === 'DELETE') {
+          setComments((p) => p.filter((c) => c.id !== payload.old.id))
         }
-      )
+      })
       .subscribe()
-
-    return () => {
-      supabase.removeChannel(subscription)
-    }
+    return () => supabase.removeChannel(sub)
   }, [bookId, fetchComments, fetchProfiles, profiles])
 
-  useEffect(() => {
-    commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [comments])
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [comments])
 
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault()
     if (!newComment.trim() || !user || !supabase) return
     setSubmitting(true)
     setError('')
-
     try {
-      const { error: insertError } = await supabase
-        .from('comments')
-        .insert({ book_id: bookId, user_id: user.id, content: newComment.trim() })
-
-      if (insertError) throw insertError
+      const { error: err } = await supabase.from('comments').insert({ book_id: bookId, user_id: user.id, content: newComment.trim() })
+      if (err) throw err
       setNewComment('')
-    } catch (err) {
-      setError('Error al publicar comentario')
-      console.error(err)
-    } finally {
-      setSubmitting(false)
-    }
+    } catch { setError('Error al publicar comentario') }
+    finally { setSubmitting(false) }
   }, [newComment, user, bookId])
 
-  const handleDelete = useCallback(async (commentId) => {
+  const handleDelete = useCallback(async (id) => {
     if (!supabase) return
-    try {
-      const { error: deleteError } = await supabase
-        .from('comments')
-        .delete()
-        .eq('id', commentId)
-        .eq('user_id', user.id)
-
-      if (deleteError) throw deleteError
-      setComments((prev) => prev.filter((c) => c.id !== commentId))
-    } catch (err) {
-      console.error('Error deleting comment:', err)
-    }
+    await supabase.from('comments').delete().eq('id', id).eq('user_id', user.id)
+    setComments((p) => p.filter((c) => c.id !== id))
   }, [user])
 
   return (
     <div>
-      <p className="text-amber-500 text-xs uppercase tracking-wider mb-3 font-medium">
+      <p className="text-xs uppercase tracking-wider mb-3 font-medium" style={{ color: '#6366f1' }}>
         Comentarios ({comments.length})
       </p>
 
-      {/* Comments list */}
       <div className="space-y-3 mb-4 max-h-56 overflow-y-auto panel-scroll pr-1">
         {loading ? (
-          <p className="text-amber-700 text-sm animate-pulse">Cargando comentarios...</p>
+          <p className="text-slate-600 text-sm animate-pulse">Cargando...</p>
         ) : comments.length === 0 ? (
-          <p className="text-amber-800 text-sm italic">
-            Sé el primero en comentar este libro.
-          </p>
+          <p className="text-slate-600 text-sm italic">Sé el primero en comentar.</p>
         ) : (
-          comments.map((comment) => (
-            <div
-              key={comment.id}
-              className="bg-dark-300 rounded-lg p-3 border border-amber-900 border-opacity-30"
-            >
+          comments.map((c) => (
+            <div key={c.id} className="rounded-xl p-3" style={{ background: '#121929', border: '1px solid rgba(99,102,241,0.1)' }}>
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2">
-                  <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-dark-400 flex-shrink-0"
-                    style={{ background: 'linear-gradient(135deg, #d97706, #92400e)' }}
-                  >
-                    {(profiles[comment.user_id] || '?')[0]?.toUpperCase()}
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, #6366f1, #4338ca)' }}>
+                    {(profiles[c.user_id] || '?')[0]?.toUpperCase()}
                   </div>
-                  <span className="text-amber-400 text-xs font-medium">
-                    {profiles[comment.user_id] || 'Usuario'}
-                  </span>
+                  <span className="text-indigo-400 text-xs font-medium">{profiles[c.user_id] || 'Usuario'}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-amber-800 text-xs">
-                    {timeAgo(comment.created_at)}
-                  </span>
-                  {comment.user_id === user?.id && (
-                    <button
-                      onClick={() => handleDelete(comment.id)}
-                      className="text-amber-800 hover:text-red-400 transition-colors"
-                      title="Eliminar comentario"
-                    >
+                  <span className="text-slate-600 text-xs">{timeAgo(c.created_at)}</span>
+                  {c.user_id === user?.id && (
+                    <button onClick={() => handleDelete(c.id)} className="text-slate-600 hover:text-red-400 transition-colors">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
                         <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
                       </svg>
@@ -178,14 +111,13 @@ export default function CommentSection({ bookId }) {
                   )}
                 </div>
               </div>
-              <p className="text-amber-100 text-sm leading-relaxed">{comment.content}</p>
+              <p className="text-slate-300 text-sm leading-relaxed">{c.content}</p>
             </div>
           ))
         )}
-        <div ref={commentsEndRef} />
+        <div ref={endRef} />
       </div>
 
-      {/* New comment form */}
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input
           type="text"
@@ -193,20 +125,19 @@ export default function CommentSection({ bookId }) {
           onChange={(e) => setNewComment(e.target.value)}
           placeholder="Escribe un comentario..."
           maxLength={500}
-          className="flex-1 bg-dark-300 border border-amber-900 rounded-lg px-3 py-2 text-amber-100 placeholder-amber-800 text-sm focus:outline-none focus:border-amber-600 transition-colors"
+          className="flex-1 rounded-xl px-3 py-2 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+          style={{ background: '#121929', border: '1px solid rgba(99,102,241,0.2)' }}
         />
         <button
           type="submit"
           disabled={submitting || !newComment.trim()}
-          className="bg-amber-700 hover:bg-amber-600 disabled:bg-amber-900 disabled:cursor-not-allowed text-amber-100 text-sm px-3 py-2 rounded-lg transition-colors font-medium whitespace-nowrap"
+          className="text-sm px-4 py-2 rounded-xl transition-all font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed text-white"
+          style={{ background: '#4f46e5' }}
         >
-          {submitting ? '...' : 'Comentar'}
+          {submitting ? '...' : 'Enviar'}
         </button>
       </form>
-
-      {error && (
-        <p className="text-red-400 text-xs mt-1">{error}</p>
-      )}
+      {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
     </div>
   )
 }
