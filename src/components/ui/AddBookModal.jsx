@@ -53,7 +53,7 @@ export default function AddBookModal({ onClose, onBookAdded }) {
     setSuggestions([])
     try {
       const res = await fetch(
-        `https://openlibrary.org/search.json?q=${encodeURIComponent(search.trim())}&limit=8&fields=key,title,author_name,subject,cover_i,first_sentence`
+        `https://openlibrary.org/search.json?q=${encodeURIComponent(search.trim())}&language=spa&limit=8&fields=key,title,author_name,subject,cover_i,first_sentence`
       )
       if (!res.ok) throw new Error(`Error ${res.status}`)
       const data = await res.json()
