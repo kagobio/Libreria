@@ -52,7 +52,7 @@ export default function AddBookModal({ onClose, onBookAdded }) {
       setSearchLoading(true)
       try {
         const res = await fetch(
-          `https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(search)}&maxResults=6&langRestrict=es,en`
+          `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(search)}&maxResults=6`
         )
         const data = await res.json()
         setSuggestions(data.items || [])
