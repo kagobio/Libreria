@@ -151,12 +151,12 @@ export default function AddBookModal({ onClose, onBookAdded }) {
               )}
             </div>
 
-            {/* Suggestions dropdown */}
-            {showSuggestions && suggestions.length > 0 && (
-              <div
-                className="absolute z-10 w-full mt-1 rounded-xl overflow-hidden shadow-2xl"
-                style={{ background: '#121929', border: '1px solid rgba(99,102,241,0.3)', maxHeight: '260px', overflowY: 'auto' }}
-              >
+            {/* Suggestions inline */}
+            {searchLoading && (
+              <p className="text-indigo-400 text-xs mt-2 animate-pulse">Buscando...</p>
+            )}
+            {suggestions.length > 0 && (
+              <div className="mt-2 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(99,102,241,0.3)' }}>
                 {suggestions.map((item) => {
                   const info = item.volumeInfo
                   const thumb = info.imageLinks?.thumbnail?.replace('http://', 'https://')
@@ -165,11 +165,11 @@ export default function AddBookModal({ onClose, onBookAdded }) {
                       key={item.id}
                       type="button"
                       onClick={() => selectSuggestion(item)}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-indigo-900 hover:bg-opacity-30 transition-colors"
-                      style={{ borderBottom: '1px solid rgba(99,102,241,0.1)' }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+                      style={{ background: '#121929', borderBottom: '1px solid rgba(99,102,241,0.1)' }}
                     >
                       {thumb ? (
-                        <img src={thumb} alt="" className="w-9 h-12 object-cover rounded flex-shrink-0" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }} />
+                        <img src={thumb} alt="" className="w-9 h-12 object-cover rounded flex-shrink-0" />
                       ) : (
                         <div className="w-9 h-12 rounded flex-shrink-0 flex items-center justify-center text-lg" style={{ background: '#1a2235' }}>📖</div>
                       )}
