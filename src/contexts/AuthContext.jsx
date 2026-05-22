@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { supabase, isConfigured } from '../lib/supabase'
 
 const AuthContext = createContext(null)
@@ -7,53 +7,54 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const resolvedRef = useRef(false)
+
+  // Resolves loading exactly once
+  const resolve = useCallback(() => {
+    if (!resolvedRef.current) {
+      resolvedRef.current = true
+      setLoading(false)
+    }
+  }, [])
 
   const fetchProfile = useCallback(async (userId) => {
     if (!supabase || !userId) return null
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    if (error) {
-      console.error('Error fetching profile:', error)
+    try {
+      const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+      return data ?? null
+    } catch {
       return null
     }
-    return data
   }, [])
 
   useEffect(() => {
     if (!isConfigured || !supabase) {
-      setLoading(false)
+      resolve()
       return
     }
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        const prof = await fetchProfile(session.user.id)
-        setProfile(prof)
-      }
-      setLoading(false)
-    }).catch(() => {
-      setLoading(false)
-    })
+    // Safety net: never stay loading more than 5 seconds
+    const timeout = setTimeout(resolve, 5000)
 
+    // onAuthStateChange fires immediately with current session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setUser(session?.user ?? null)
         if (session?.user) {
-          const prof = await fetchProfile(session.user.id)
-          setProfile(prof)
+          resolve() // unblock UI immediately
+          fetchProfile(session.user.id).then(setProfile)
         } else {
           setProfile(null)
+          resolve()
         }
-        setLoading(false)
       }
     )
 
-    return () => subscription.unsubscribe()
-  }, [fetchProfile])
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
+  }, [fetchProfile, resolve])
 
   const signIn = useCallback(async (email, password) => {
     if (!supabase) throw new Error('Supabase no está configurado')
@@ -64,27 +65,13 @@ export function AuthProvider({ children }) {
 
   const signUp = useCallback(async (email, password, username) => {
     if (!supabase) throw new Error('Supabase no está configurado')
-
-    const { data: existingProfile } = await supabase
-      .from('profiles')
-      .select('username')
-      .eq('username', username)
-      .single()
-
-    if (existingProfile) {
-      throw new Error('El nombre de usuario ya está en uso')
-    }
-
+    const { data: existing } = await supabase.from('profiles').select('username').eq('username', username).single()
+    if (existing) throw new Error('El nombre de usuario ya está en uso')
     const { data, error } = await supabase.auth.signUp({ email, password })
     if (error) throw error
-
     if (data.user) {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({ id: data.user.id, username })
-      if (profileError) console.error('Error creating profile:', profileError)
+      await supabase.from('profiles').upsert({ id: data.user.id, username })
     }
-
     return data
   }, [])
 
@@ -94,17 +81,11 @@ export function AuthProvider({ children }) {
     if (error) throw error
   }, [])
 
-  const value = {
-    user,
-    profile,
-    loading,
-    signIn,
-    signUp,
-    signOut,
-    isConfigured,
-  }
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, isConfigured }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {
