@@ -1,110 +1,135 @@
-import React, { useRef, useState, useCallback, useMemo } from 'react'
-import { useFrame } from '@react-three/fiber'
+import React, { useRef, useState, useCallback, useMemo, Suspense } from 'react'
+import { useFrame, useLoader } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import * as THREE from 'three'
 
-const NEON = ['#00d4ff','#a855f7','#00ff88','#ff3d7f','#ffd700','#ff6b35','#60a5fa','#f0abfc']
-
-function bookHash(id = '') {
-  let h = 0
-  for (const c of id) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff
-  return Math.abs(h)
+function hexDarken(hex, f = 0.7) {
+  const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  if (!r) return new THREE.Color(0.3, 0.15, 0.05)
+  return new THREE.Color(
+    parseInt(r[1], 16) / 255 * f,
+    parseInt(r[2], 16) / 255 * f,
+    parseInt(r[3], 16) / 255 * f
+  )
 }
 
-function getNeon(id)  { return NEON[bookHash(id) % NEON.length] }
-function getPhase(id) { return (bookHash(id) & 0xff) / 255 * Math.PI * 2 }
+function getPhase(id = '') {
+  let h = 0
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff
+  return ((h & 0xff) / 255) * Math.PI * 2
+}
 
-export default function Book3D({ book, position, isSelected, onClick }) {
-  const [hovered, setHovered] = useState(false)
-  const groupRef  = useRef()
-  const glowRef   = useRef()
-  const animY     = useRef(position[1])
-  const animZ     = useRef(position[2])
-  const animRotY  = useRef(0)
-  const animGlow  = useRef(0.08)
+class CoverErrorBoundary extends React.Component {
+  state = { err: false }
+  static getDerivedStateFromError() { return { err: true } }
+  render() { return this.state.err ? this.props.fallback : this.props.children }
+}
 
-  const neon  = useMemo(() => getNeon(book.id),  [book.id])
-  const phase = useMemo(() => getPhase(book.id), [book.id])
+function CoverLoader({ url, onLoad }) {
+  const tex = useLoader(THREE.TextureLoader, url.replace('http://', 'https://'))
+  React.useEffect(() => { if (tex) onLoad(tex) }, [tex, onLoad])
+  return null
+}
 
-  const bodyMat = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#060c1a', roughness: 0.05, metalness: 0.95,
-  }), [])
+function BookMesh({ book, isSelected, hovered, onHover, onClick, position }) {
+  const meshRef  = useRef()
+  const phase    = useMemo(() => getPhase(book.id), [book.id])
+  const animY    = useRef(position[1])
+  const animS    = useRef(1.0)
+  const animRotX = useRef(0)
 
-  const edgesGeo = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(0.285, 0.925, 0.058)), [])
-  const edgeMat  = useMemo(() => new THREE.LineBasicMaterial({ color: neon }), [neon])
-  const lineSegs = useMemo(() => new THREE.LineSegments(edgesGeo, edgeMat), [edgesGeo, edgeMat])
+  const spine = book.spine_color || '#8B4513'
+  const [coverTex, setCoverTex] = useState(null)
 
-  const glowMat = useMemo(() => new THREE.MeshBasicMaterial({
-    color: neon, transparent: true, opacity: 0.08,
-    side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
-  }), [neon])
+  const mats = useMemo(() => {
+    const page  = new THREE.MeshStandardMaterial({ color: '#f2ead8', roughness: 0.9, metalness: 0 })
+    const top   = new THREE.MeshStandardMaterial({ color: '#e8dfc8', roughness: 0.9, metalness: 0 })
+    const front = new THREE.MeshStandardMaterial({ color: spine,     roughness: 0.65, metalness: 0.02 })
+    const back  = new THREE.MeshStandardMaterial({ color: hexDarken(spine, 0.75), roughness: 0.7 })
+    // right, left, top, bottom, front(spine), back
+    return [page, page, top, top, front, back]
+  }, [spine])
+
+  const coverMats = useMemo(() => {
+    if (!coverTex) return mats
+    const cover = new THREE.MeshStandardMaterial({ map: coverTex, roughness: 0.6 })
+    return [mats[0], mats[1], mats[2], mats[3], cover, mats[5]]
+  }, [coverTex, mats])
+
+  // selected glow
+  useMemo(() => {
+    const spineMat = mats[4]
+    spineMat.emissive = new THREE.Color(isSelected ? '#fbbf24' : '#000000')
+    spineMat.emissiveIntensity = isSelected ? 0.3 : 0
+  }, [isSelected, mats])
 
   useFrame(({ clock }, delta) => {
-    if (!groupRef.current) return
+    if (!meshRef.current) return
     const t  = clock.elapsedTime
     const lf = 1 - Math.pow(0.01, delta)
-
-    let ty = position[1] + Math.sin(t * 0.55 + phase) * 0.022
-    let tz = position[2]
-    let tr = 0
-    let tg = 0.08
-
-    if (isSelected) {
-      ty = position[1] + 0.2
-      tz = position[2] + 0.18
-      tr = Math.sin(t * 0.45) * 0.18
-      tg = 0.55
-    } else if (hovered) {
-      ty = position[1] + 0.1
-      tz = position[2] + 0.14
-      tg = 0.3
-    }
+    const ty = isSelected ? position[1] + 0.18
+             : hovered    ? position[1] + 0.1
+             :              position[1] + Math.sin(t * 0.5 + phase) * 0.012
+    const ts = hovered || isSelected ? 1.06 : 1.0
+    const tr = hovered ? -0.12 : 0
 
     animY.current    += (ty - animY.current)    * lf
-    animZ.current    += (tz - animZ.current)    * lf
-    animRotY.current += (tr - animRotY.current) * lf
-    animGlow.current += (tg - animGlow.current) * lf
+    animS.current    += (ts - animS.current)    * lf
+    animRotX.current += (tr - animRotX.current) * lf
 
-    groupRef.current.position.set(position[0], animY.current, animZ.current)
-    groupRef.current.rotation.y = animRotY.current
-    if (glowRef.current) glowRef.current.material.opacity = animGlow.current
+    meshRef.current.position.y = animY.current
+    meshRef.current.scale.setScalar(animS.current)
+    meshRef.current.rotation.x = animRotX.current
   })
 
   const click = useCallback((e) => { e.stopPropagation(); onClick(book) }, [book, onClick])
-  const over  = useCallback((e) => { e.stopPropagation(); setHovered(true);  document.body.style.cursor = 'pointer' }, [])
-  const out   = useCallback(()  => { setHovered(false); document.body.style.cursor = 'default' }, [])
-
-  const label = book.title.length > 16 ? book.title.slice(0, 16) + '…' : book.title
+  const over  = useCallback((e) => { e.stopPropagation(); onHover(true);  document.body.style.cursor = 'pointer' }, [onHover])
+  const out   = useCallback(()  => { onHover(false); document.body.style.cursor = 'default' }, [onHover])
+  const label = book.title.length > 20 ? book.title.slice(0, 20) + '…' : book.title
 
   return (
-    <group ref={groupRef} position={position}>
-      <mesh material={bodyMat} onClick={click} onPointerOver={over} onPointerOut={out} castShadow>
-        <boxGeometry args={[0.28, 0.9, 0.05]} />
-      </mesh>
-
-      <mesh ref={glowRef} material={glowMat} scale={[1.5, 1.12, 4]}>
-        <boxGeometry args={[0.28, 0.9, 0.05]} />
-      </mesh>
-
-      <primitive object={lineSegs} onClick={click} onPointerOver={over} onPointerOut={out} />
-
-      <Text
-        position={[0, 0, 0.032]}
-        rotation={[0, 0, Math.PI / 2]}
-        fontSize={0.028}
-        color={neon}
-        maxWidth={0.72}
-        textAlign="center"
-        anchorX="center"
-        anchorY="middle"
-        lineHeight={1.15}
-        onClick={click}
-        onPointerOver={over}
-        onPointerOut={out}
-        renderOrder={1}
+    <>
+      {book.cover_url && (
+        <CoverErrorBoundary fallback={null}>
+          <Suspense fallback={null}>
+            <CoverLoader url={book.cover_url} onLoad={setCoverTex} />
+          </Suspense>
+        </CoverErrorBoundary>
+      )}
+      <mesh
+        ref={meshRef}
+        position={position}
+        material={coverMats}
+        onClick={click} onPointerOver={over} onPointerOut={out}
+        castShadow receiveShadow
       >
-        {label}
-      </Text>
-    </group>
+        <boxGeometry args={[0.26, 0.88, 0.2]} />
+      </mesh>
+      {!coverTex && (
+        <Text
+          position={[position[0], position[1], position[2] + 0.11]}
+          rotation={[0, 0, Math.PI / 2]}
+          fontSize={0.036}
+          color="#f5ead0"
+          maxWidth={0.72}
+          textAlign="center"
+          anchorX="center" anchorY="middle"
+          lineHeight={1.2}
+          onClick={click} onPointerOver={over} onPointerOut={out}
+        >
+          {label}
+        </Text>
+      )}
+    </>
+  )
+}
+
+export default function Book3D({ book, position, isSelected, onClick }) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <BookMesh
+      book={book} position={position} isSelected={isSelected}
+      hovered={hovered} onHover={setHovered} onClick={onClick}
+    />
   )
 }

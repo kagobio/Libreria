@@ -1,81 +1,54 @@
-import React, { useRef, useMemo } from 'react'
-import { useFrame } from '@react-three/fiber'
+import React, { useMemo } from 'react'
 import * as THREE from 'three'
 
-function GlassPlatform({ y, width = 6.8 }) {
-  const bodyMat = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#040810', roughness: 0.02, metalness: 0.98,
-  }), [])
+const WOOD      = '#c8a050'
+const WOOD_DARK = '#a07832'
+const WOOD_BACK = '#7a5c28'
 
-  const edgesGeo = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(width, 0.04, 0.38)), [width])
-  const edgeMat  = useMemo(() => new THREE.LineBasicMaterial({ color: '#00d4ff' }), [])
-  const lines    = useMemo(() => new THREE.LineSegments(edgesGeo, edgeMat), [edgesGeo, edgeMat])
-
+function Plank({ position, args, color = WOOD, roughness = 0.75, rotation }) {
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.02 }), [color, roughness])
   return (
-    <group position={[0, y, 0]}>
-      <mesh material={bodyMat} receiveShadow>
-        <boxGeometry args={[width, 0.04, 0.38]} />
-      </mesh>
-      <primitive object={lines} />
-    </group>
-  )
-}
-
-function Pillar({ x }) {
-  const mat  = useMemo(() => new THREE.MeshStandardMaterial({ color: '#040810', roughness: 0.02, metalness: 0.98 }), [])
-  const eGeo = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(0.04, 2.8, 0.38)), [])
-  const eMat = useMemo(() => new THREE.LineBasicMaterial({ color: '#003a66' }), [])
-  const segs = useMemo(() => new THREE.LineSegments(eGeo, eMat), [eGeo, eMat])
-
-  return (
-    <group position={[x, 0, 0]}>
-      <mesh material={mat}><boxGeometry args={[0.04, 2.8, 0.38]} /></mesh>
-      <primitive object={segs} />
-    </group>
-  )
-}
-
-function FloatingOrb({ position }) {
-  const ref = useRef()
-  const mat = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#001428', roughness: 0.0, metalness: 1.0,
-    emissive: new THREE.Color('#00d4ff'), emissiveIntensity: 0.8,
-  }), [])
-  const ringMat = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#00aaff', roughness: 0.1, metalness: 0.9,
-    emissive: new THREE.Color('#0066ff'), emissiveIntensity: 0.3,
-  }), [])
-
-  useFrame(({ clock }) => {
-    if (!ref.current) return
-    const t = clock.elapsedTime
-    ref.current.rotation.y = t * 0.6
-    ref.current.rotation.x = t * 0.3
-    ref.current.position.y = position[1] + Math.sin(t * 0.9) * 0.06
-  })
-
-  return (
-    <group ref={ref} position={position}>
-      <mesh material={mat}><octahedronGeometry args={[0.1, 0]} /></mesh>
-      <mesh material={ringMat} rotation={[Math.PI / 5, 0, 0]}>
-        <torusGeometry args={[0.18, 0.006, 8, 40]} />
-      </mesh>
-      <mesh material={ringMat} rotation={[Math.PI / 2, Math.PI / 4, 0]}>
-        <torusGeometry args={[0.18, 0.004, 8, 40]} />
-      </mesh>
-    </group>
+    <mesh position={position} material={mat} castShadow receiveShadow rotation={rotation}>
+      <boxGeometry args={args} />
+    </mesh>
   )
 }
 
 export default function Bookshelf() {
+  const W  = 6.0   // total interior width
+  const D  = 0.38  // depth
+  const PT = 0.07  // plank thickness
+  const ST = 0.07  // side/divider thickness
+  const cols = 4
+  const dividerPositions = [-W / 2 + ST / 2, -W / 6 - ST / 2, -W / 6 + ST / 2, W / 6 - ST / 2, W / 6 + ST / 2, W / 2 - ST / 2]
+
+  // Shelf Y positions (bottom of each row's shelf plank)
+  const midY = 0.0
+  const topY = 1.22
+
   return (
     <group>
-      <GlassPlatform y={ 1.2} />
-      <GlassPlatform y={ 0.0} />
-      <GlassPlatform y={-1.2} />
-      <Pillar x={-3.45} />
-      <Pillar x={ 3.45} />
-      <FloatingOrb position={[-3.1, 1.42, 0.05]} />
+      {/* Back panel */}
+      <Plank position={[0, 0, -D / 2 - 0.01]} args={[W + ST * 2 + 0.02, 2.7, 0.03]} color={WOOD_BACK} roughness={0.88} />
+
+      {/* Horizontal shelves: bottom, middle, top */}
+      <Plank position={[0, -1.22, 0]} args={[W + ST * 2, PT, D]} color={WOOD_DARK} />
+      <Plank position={[0,  midY, 0]} args={[W, PT, D]} color={WOOD} />
+      <Plank position={[0,  topY, 0]} args={[W, PT, D]} color={WOOD} />
+
+      {/* Top cap */}
+      <Plank position={[0, topY + 0.22, 0]} args={[W + ST * 2 + 0.02, PT, D + 0.05]} color={WOOD_DARK} roughness={0.65} />
+      {/* Bottom base */}
+      <Plank position={[0, -1.44, 0]} args={[W + ST * 2 + 0.02, PT, D + 0.05]} color={WOOD_DARK} roughness={0.65} />
+
+      {/* Side panels */}
+      <Plank position={[-(W / 2 + ST / 2), 0, 0]} args={[ST, 2.7, D]} color={WOOD_DARK} />
+      <Plank position={[ (W / 2 + ST / 2), 0, 0]} args={[ST, 2.7, D]} color={WOOD_DARK} />
+
+      {/* Vertical dividers — 3 dividers create 4 columns */}
+      {[-W / 3, 0, W / 3].map((x, i) => (
+        <Plank key={i} position={[x, 0, 0]} args={[ST, 2.7 - PT, D]} color={WOOD_DARK} roughness={0.72} />
+      ))}
     </group>
   )
 }
