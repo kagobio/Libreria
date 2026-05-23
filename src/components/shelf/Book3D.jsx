@@ -103,11 +103,11 @@ function BookMesh({ book, isSelected, hovered, onHover, onClick, position }) {
         onClick={click} onPointerOver={over} onPointerOut={out}
         castShadow receiveShadow
       >
-        <boxGeometry args={[0.26, 0.88, 0.2]} />
+        <boxGeometry args={[0.26, 0.80, 0.22]} />
       </mesh>
       {!coverTex && (
         <Text
-          position={[position[0], position[1], position[2] + 0.11]}
+          position={[position[0], position[1], position[2] + 0.12]}
           rotation={[0, 0, Math.PI / 2]}
           fontSize={0.036}
           color="#f5ead0"
