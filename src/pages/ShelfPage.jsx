@@ -5,6 +5,7 @@ import ShelfScene from '../components/shelf/ShelfScene'
 import Navbar from '../components/ui/Navbar'
 import BookDetailPanel from '../components/ui/BookDetailPanel'
 import AddBookModal from '../components/ui/AddBookModal'
+import FeatureCards from '../components/ui/FeatureCards'
 
 export default function ShelfPage() {
   const { user } = useAuth()
@@ -111,6 +112,7 @@ export default function ShelfPage() {
               />
               {/* CSS vignette overlay */}
               <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.75) 100%)' }} />
+              <FeatureCards visible={!selectedBook} />
             </div>
           )}
         </div>

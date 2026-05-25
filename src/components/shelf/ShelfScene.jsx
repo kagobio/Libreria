@@ -24,10 +24,10 @@ const ROW_CENTERS = Array.from({ length: ROWS }, (_, i) =>
 )
 
 // ─── Room backdrop ────────────────────────────────────────────────────────────
-const wallMat  = new THREE.MeshStandardMaterial({ color: '#180c05', roughness: 0.94, metalness: 0 })
+const wallMat  = new THREE.MeshStandardMaterial({ color: '#201206', roughness: 0.94, metalness: 0 })
 const floorMat = new THREE.MeshPhysicalMaterial({
-  color: '#0f0806', roughness: 0.16, metalness: 0,
-  reflectivity: 0.25, clearcoat: 0.12, clearcoatRoughness: 0.5,
+  color: '#120a04', roughness: 0.12, metalness: 0,
+  reflectivity: 0.35, clearcoat: 0.30, clearcoatRoughness: 0.25,
 })
 
 function Room() {
@@ -45,32 +45,30 @@ function Room() {
 
 // ─── Cinematic lighting ───────────────────────────────────────────────────────
 function SceneLighting() {
+  // 12 per-compartment warm spotlights
+  const compartmentLights = []
+  for (let ri = 0; ri < ROWS; ri++) {
+    for (let ci = 0; ci < COLS; ci++) {
+      compartmentLights.push(
+        <pointLight
+          key={`cl-${ri}-${ci}`}
+          position={[COL_CENTERS[ci], PLANKS[ri + 1] - 0.06, 0.08]}
+          intensity={1.8}
+          color="#ffaa28"
+          distance={2.0}
+          decay={2}
+        />
+      )
+    }
+  }
   return (
     <>
-      <ambientLight intensity={0.35} color="#ffeedd" />
-
-      {/* Dramatic overhead key light */}
-      <directionalLight
-        position={[2, 10, 8]} intensity={3.8} color="#fff9ee"
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-9} shadow-camera-right={9}
-        shadow-camera-top={6}  shadow-camera-bottom={-6}
-        shadow-camera-far={28}
-        shadow-bias={-0.001}
-      />
-
-      {/* Warm amber per-row fills — simulates compartment spotlights */}
-      <pointLight position={[-2.5, ROW_CENTERS[2] + 0.1, 0.0]} intensity={2.0} color="#ff7e18" distance={5.5} decay={2} />
-      <pointLight position={[ 0.0, ROW_CENTERS[1] + 0.1, 0.0]} intensity={1.6} color="#ff8c22" distance={5.5} decay={2} />
-      <pointLight position={[ 2.5, ROW_CENTERS[0] + 0.1, 0.0]} intensity={1.8} color="#ff7510" distance={5.5} decay={2} />
-
-      {/* Wide warm fill from front */}
-      <pointLight position={[0, 1.0, 7.5]} intensity={0.55} color="#ffe8c0" distance={16} decay={2} />
-
-      {/* Side rim lights */}
-      <pointLight position={[-7.5, 1.5, 3]} intensity={0.75} color="#ff9c30" distance={13} decay={2} />
-      <pointLight position={[ 7.5, 1.5, 3]} intensity={0.65} color="#ffac40" distance={13} decay={2} />
+      <ambientLight intensity={0.65} color="#ffe8c0" />
+      <directionalLight position={[2, 9, 8]} intensity={3.2} color="#fff9ee" castShadow shadow-mapSize={[2048,2048]} shadow-camera-left={-9} shadow-camera-right={9} shadow-camera-top={6} shadow-camera-bottom={-6} shadow-camera-far={28} shadow-bias={-0.001} />
+      {compartmentLights}
+      <pointLight position={[0, 1.0, 7.5]} intensity={0.5} color="#ffe8c0" distance={16} decay={2} />
+      <pointLight position={[-7, 1.5, 3]} intensity={0.6} color="#ffaa30" distance={13} decay={2} />
+      <pointLight position={[ 7, 1.5, 3]} intensity={0.5} color="#ffb840" distance={13} decay={2} />
     </>
   )
 }
@@ -186,17 +184,17 @@ function BooksOnShelf({ books, selectedBook, onBookClick }) {
 export default function ShelfScene({ books, selectedBook, onBookClick }) {
   return (
     <Canvas
-      camera={{ position: [0, 0.2, 7.6], fov: 46 }}
+      camera={{ position: [-0.5, 0.6, 7.5], fov: 48 }}
       shadows
       dpr={[1, 2]}
       gl={{
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,
-        toneMappingExposure: 1.15,
+        toneMappingExposure: 1.2,
       }}
     >
-      <color attach="background" args={['#0d0704']} />
-      <fog attach="fog" args={['#0d0704', 24, 48]} />
+      <color attach="background" args={['#1e1008']} />
+      <fog attach="fog" args={['#1e1008', 24, 48]} />
 
       <SceneLighting />
 

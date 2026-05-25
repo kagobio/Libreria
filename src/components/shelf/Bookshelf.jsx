@@ -1,10 +1,10 @@
 import React, { useMemo } from 'react'
 import * as THREE from 'three'
 
-const W_MAIN = '#4a2a14'
-const W_DARK = '#261408'
-const W_SIDE = '#38200e'
-const W_BACK = '#0b0806'
+const W_MAIN = '#b07820'
+const W_DARK = '#7a5412'
+const W_SIDE = '#956418'
+const W_BACK = '#160c04'
 
 function Plank({ position, args, color, roughness = 0.42, clearcoat = 0.55 }) {
   const mat = useMemo(
