@@ -56,14 +56,14 @@ export default function BookDetailPanel({ book, onClose }) {
   return (
     <div
       className="fixed right-0 top-0 bottom-0 z-40 flex flex-col"
-      style={{ width: '380px', background: '#0d1221', borderLeft: '1px solid rgba(99,102,241,0.2)', boxShadow: '-10px 0 40px rgba(0,0,0,0.6)' }}
+      style={{ width: '380px', background: 'rgba(10,5,2,0.92)', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', borderLeft: '1px solid rgba(200,140,40,0.22)', boxShadow: '-12px 0 50px rgba(0,0,0,0.85)' }}
     >
       {/* Header */}
-      <div className="relative flex-shrink-0 p-6 pb-4" style={{ borderBottom: '1px solid rgba(99,102,241,0.15)' }}>
+      <div className="relative flex-shrink-0 p-6 pb-4" style={{ borderBottom: '1px solid rgba(200,140,40,0.18)' }}>
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-slate-500 hover:text-slate-300 transition-colors w-8 h-8 flex items-center justify-center rounded-full"
-          style={{ background: 'rgba(99,102,241,0.1)' }}
+          style={{ background: 'rgba(200,140,40,0.12)' }}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
             <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
@@ -86,7 +86,7 @@ export default function BookDetailPanel({ book, onClose }) {
             <h2 className="text-slate-100 font-serif text-lg font-bold leading-tight mb-1 break-words">{book.title}</h2>
             <p className="text-slate-400 text-sm mb-2">{book.author}</p>
             {genreLabel && (
-              <span className="inline-block text-xs px-2.5 py-0.5 rounded-full font-medium" style={{ background: 'rgba(99,102,241,0.15)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.3)' }}>
+              <span className="inline-block text-xs px-2.5 py-0.5 rounded-full font-medium" style={{ background: 'rgba(200,140,40,0.18)', color: '#d4a050', border: '1px solid rgba(200,140,40,0.35)' }}>
                 {genreLabel}
               </span>
             )}
@@ -95,7 +95,7 @@ export default function BookDetailPanel({ book, onClose }) {
 
         {addedByUsername && (
           <p className="text-slate-600 text-xs mt-3">
-            Añadido por <span className="text-indigo-400">{addedByUsername}</span>
+            Añadido por <span style={{ color: '#d4a050' }}>{addedByUsername}</span>
           </p>
         )}
       </div>
@@ -109,7 +109,7 @@ export default function BookDetailPanel({ book, onClose }) {
           </div>
         )}
 
-        <div style={{ borderTop: '1px solid rgba(99,102,241,0.1)' }} />
+        <div style={{ borderTop: '1px solid rgba(200,140,40,0.12)' }} />
 
         {loadingData ? (
           <div className="animate-pulse space-y-2">
@@ -120,7 +120,7 @@ export default function BookDetailPanel({ book, onClose }) {
           <StarRating bookId={book.id} initialRating={userRating} allRatings={ratings} />
         )}
 
-        <div style={{ borderTop: '1px solid rgba(99,102,241,0.1)' }} />
+        <div style={{ borderTop: '1px solid rgba(200,140,40,0.12)' }} />
 
         <CommentSection bookId={book.id} />
       </div>
