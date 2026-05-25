@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useMemo, Suspense } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, ContactShadows } from '@react-three/drei'
-import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import Bookshelf from './Bookshelf'
 import Book3D from './Book3D'
@@ -214,16 +213,6 @@ export default function ShelfScene({ books, selectedBook, onBookClick }) {
           color="#000000"
         />
       </Suspense>
-
-      <EffectComposer>
-        <Bloom
-          intensity={1.6}
-          luminanceThreshold={0.30}
-          luminanceSmoothing={0.88}
-          mipmapBlur
-        />
-        <Vignette offset={0.28} darkness={0.88} />
-      </EffectComposer>
 
       <OrbitControls
         target={[0, 0.1, 0]}

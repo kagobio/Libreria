@@ -103,11 +103,15 @@ export default function ShelfPage() {
               </p>
             </div>
           ) : (
-            <ShelfScene
-              books={books}
-              selectedBook={selectedBook}
-              onBookClick={handleBookClick}
-            />
+            <div className="relative w-full h-full">
+              <ShelfScene
+                books={books}
+                selectedBook={selectedBook}
+                onBookClick={handleBookClick}
+              />
+              {/* CSS vignette overlay */}
+              <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.75) 100%)' }} />
+            </div>
           )}
         </div>
 
