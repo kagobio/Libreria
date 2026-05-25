@@ -1,15 +1,15 @@
 import React, { useMemo } from 'react'
 import * as THREE from 'three'
 
-const BAMBOO      = '#d4b058'
-const BAMBOO_DARK = '#b08c38'
-const BAMBOO_SIDE = '#c4a048'
-const BACK_DARK   = '#0d0d0d'
+const BAMBOO      = '#c8982a'
+const BAMBOO_DARK = '#a07420'
+const BAMBOO_SIDE = '#b88828'
+const BACK_DARK   = '#090705'
 
-function Plank({ position, args, color, roughness = 0.72, metalness = 0.04 }) {
+function Plank({ position, args, color, roughness = 0.55, metalness = 0.04, clearcoat = 0.4 }) {
   const mat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color, roughness, metalness }),
-    [color, roughness, metalness]
+    () => new THREE.MeshPhysicalMaterial({ color, roughness, metalness, clearcoat, clearcoatRoughness: 0.3 }),
+    [color, roughness, metalness, clearcoat]
   )
   return (
     <mesh position={position} material={mat} castShadow receiveShadow>
@@ -18,41 +18,37 @@ function Plank({ position, args, color, roughness = 0.72, metalness = 0.04 }) {
   )
 }
 
-// Dark back panel for each compartment (creates the dark interior look)
 function CompartmentBack({ x, y, w, h, depth }) {
   const mat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: BACK_DARK, roughness: 0.95, metalness: 0 }),
+    () => new THREE.MeshStandardMaterial({ color: BACK_DARK, roughness: 1, metalness: 0 }),
     []
   )
   return (
-    <mesh position={[x, y, -depth / 2 + 0.01]} material={mat}>
+    <mesh position={[x, y, -depth / 2 + 0.01]} material={mat} receiveShadow>
       <planeGeometry args={[w, h]} />
     </mesh>
   )
 }
 
 export default function Bookshelf() {
-  const W    = 6.4   // total outer width
-  const D    = 0.42  // shelf depth
-  const PT   = 0.07  // plank thickness
-  const ST   = 0.08  // side panel thickness
-  const DT   = 0.07  // divider thickness
+  const W    = 6.4
+  const D    = 0.42
+  const PT   = 0.07
+  const ST   = 0.08
+  const DT   = 0.07
   const COLS = 4
   const ROWS = 3
 
-  const innerW = W - ST * 2              // 6.24
-  const colInW = (innerW - DT * (COLS - 1)) / COLS  // ~1.478
+  const innerW = W - ST * 2
+  const colInW = (innerW - DT * (COLS - 1)) / COLS
 
-  // Y positions of horizontal planks (bottom of each shelf level)
-  const planks = [-1.38, -0.45, 0.48, 1.41]  // 4 planks = 3 rows
+  const planks = [-1.38, -0.45, 0.48, 1.41]
 
-  // Column X centers
   const colCenters = Array.from({ length: COLS }, (_, i) => {
     const startX = -(innerW / 2)
     return startX + colInW / 2 + i * (colInW + DT)
   })
 
-  // Row Y centers (mid-point between consecutive planks)
   const rowCenters = Array.from({ length: ROWS }, (_, i) => {
     const yBot = planks[i] + PT
     const yTop = planks[i + 1]
@@ -62,7 +58,7 @@ export default function Bookshelf() {
 
   return (
     <group>
-      {/* ── Horizontal shelf planks ── */}
+      {/* Horizontal shelf planks */}
       {planks.map((y, i) => (
         <Plank
           key={`h${i}`}
@@ -72,27 +68,39 @@ export default function Bookshelf() {
         />
       ))}
 
-      {/* ── Top cap ── */}
+      {/* Top cap */}
       <Plank
-        position={[0, planks[ROWS] + PT + 0.04, 0]}
-        args={[W + 0.02, 0.08, D + 0.06]}
+        position={[0, planks[ROWS] + PT + 0.045, 0]}
+        args={[W + 0.03, 0.09, D + 0.08]}
         color={BAMBOO_DARK}
-        roughness={0.6}
+        roughness={0.42}
+        clearcoat={0.7}
       />
 
-      {/* ── Bottom base ── */}
+      {/* Bottom base */}
       <Plank
-        position={[0, planks[0] - 0.04, 0]}
-        args={[W + 0.02, 0.08, D + 0.06]}
+        position={[0, planks[0] - 0.045, 0]}
+        args={[W + 0.03, 0.09, D + 0.08]}
         color={BAMBOO_DARK}
-        roughness={0.6}
+        roughness={0.42}
+        clearcoat={0.7}
       />
 
-      {/* ── Side panels ── */}
-      <Plank position={[-(W / 2 - ST / 2), (planks[0] + planks[ROWS]) / 2 + PT, 0]} args={[ST, planks[ROWS] - planks[0] + PT * 2, D]} color={BAMBOO_SIDE} />
-      <Plank position={[ (W / 2 - ST / 2), (planks[0] + planks[ROWS]) / 2 + PT, 0]} args={[ST, planks[ROWS] - planks[0] + PT * 2, D]} color={BAMBOO_SIDE} />
+      {/* Side panels */}
+      <Plank
+        position={[-(W / 2 - ST / 2), (planks[0] + planks[ROWS]) / 2 + PT, 0]}
+        args={[ST, planks[ROWS] - planks[0] + PT * 2, D]}
+        color={BAMBOO_SIDE}
+        clearcoat={0.5}
+      />
+      <Plank
+        position={[ (W / 2 - ST / 2), (planks[0] + planks[ROWS]) / 2 + PT, 0]}
+        args={[ST, planks[ROWS] - planks[0] + PT * 2, D]}
+        color={BAMBOO_SIDE}
+        clearcoat={0.5}
+      />
 
-      {/* ── Vertical dividers ── */}
+      {/* Vertical dividers */}
       {Array.from({ length: COLS - 1 }, (_, i) => {
         const x = -(innerW / 2) + (i + 1) * colInW + i * DT + DT / 2
         return (
@@ -101,19 +109,19 @@ export default function Bookshelf() {
             position={[x, (planks[0] + planks[ROWS]) / 2 + PT, 0]}
             args={[DT, planks[ROWS] - planks[0] + PT * 2, D]}
             color={BAMBOO_DARK}
+            clearcoat={0.3}
           />
         )
       })}
 
-      {/* ── Dark back panels per compartment ── */}
+      {/* Dark back panels per compartment */}
       {rowCenters.map((ry, ri) =>
         colCenters.map((cx, ci) => (
           <CompartmentBack
             key={`back-${ri}-${ci}`}
-            x={cx}
-            y={ry}
-            w={colInW - 0.01}
-            h={rowInH[ri] - 0.01}
+            x={cx} y={ry}
+            w={colInW - 0.02}
+            h={rowInH[ri] - 0.02}
             depth={D}
           />
         ))
