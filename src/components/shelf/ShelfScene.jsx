@@ -44,27 +44,32 @@ function Room() {
 }
 
 // ─── Cinematic lighting ───────────────────────────────────────────────────────
-function SceneLighting() {
-  // 12 per-compartment warm spotlights
+function SceneLighting({ bgImage }) {
   const compartmentLights = []
-  for (let ri = 0; ri < ROWS; ri++) {
-    for (let ci = 0; ci < COLS; ci++) {
-      compartmentLights.push(
-        <pointLight
-          key={`cl-${ri}-${ci}`}
-          position={[COL_CENTERS[ci], PLANKS[ri + 1] - 0.06, 0.08]}
-          intensity={1.8}
-          color="#ffaa28"
-          distance={2.0}
-          decay={2}
-        />
-      )
+  if (!bgImage) {
+    for (let ri = 0; ri < ROWS; ri++) {
+      for (let ci = 0; ci < COLS; ci++) {
+        compartmentLights.push(
+          <pointLight
+            key={`cl-${ri}-${ci}`}
+            position={[COL_CENTERS[ci], PLANKS[ri + 1] - 0.06, 0.08]}
+            intensity={1.8} color="#ffaa28" distance={2.0} decay={2}
+          />
+        )
+      }
     }
   }
   return (
     <>
-      <ambientLight intensity={0.65} color="#ffe8c0" />
-      <directionalLight position={[2, 9, 8]} intensity={3.2} color="#fff9ee" castShadow shadow-mapSize={[2048,2048]} shadow-camera-left={-9} shadow-camera-right={9} shadow-camera-top={6} shadow-camera-bottom={-6} shadow-camera-far={28} shadow-bias={-0.001} />
+      <ambientLight intensity={bgImage ? 1.4 : 0.65} color="#ffe8c0" />
+      <directionalLight
+        position={[2, 9, 8]} intensity={bgImage ? 2.0 : 3.2} color="#fff9ee"
+        castShadow={!bgImage}
+        shadow-mapSize={[2048, 2048]}
+        shadow-camera-left={-9} shadow-camera-right={9}
+        shadow-camera-top={6} shadow-camera-bottom={-6}
+        shadow-camera-far={28} shadow-bias={-0.001}
+      />
       {compartmentLights}
       <pointLight position={[0, 1.0, 7.5]} intensity={0.5} color="#ffe8c0" distance={16} decay={2} />
       <pointLight position={[-7, 1.5, 3]} intensity={0.6} color="#ffaa30" distance={13} decay={2} />
@@ -181,35 +186,38 @@ function BooksOnShelf({ books, selectedBook, onBookClick }) {
 }
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
-export default function ShelfScene({ books, selectedBook, onBookClick }) {
+export default function ShelfScene({ books, selectedBook, onBookClick, bgImage }) {
   return (
     <Canvas
-      camera={{ position: [-0.5, 0.6, 7.5], fov: 48 }}
-      shadows
+      camera={{ position: [0, 0.1, 7.5], fov: 48 }}
+      shadows={!bgImage}
       dpr={[1, 2]}
       gl={{
+        alpha: bgImage ? true : false,
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,
-        toneMappingExposure: 1.2,
+        toneMappingExposure: bgImage ? 1.5 : 1.2,
       }}
     >
-      <color attach="background" args={['#1e1008']} />
-      <fog attach="fog" args={['#1e1008', 24, 48]} />
+      {!bgImage && <color attach="background" args={['#1e1008']} />}
+      {!bgImage && <fog attach="fog" args={['#1e1008', 24, 48]} />}
 
-      <SceneLighting />
+      <SceneLighting bgImage={bgImage} />
 
       <Suspense fallback={null}>
         <SceneParallax>
-          <Room />
-          <Bookshelf />
+          {!bgImage && <Room />}
+          {!bgImage && <Bookshelf />}
           <BooksOnShelf books={books} selectedBook={selectedBook} onBookClick={onBookClick} />
           <DustParticles />
         </SceneParallax>
-        <ContactShadows
-          position={[0, -1.57, 0]}
-          opacity={0.75} scale={16} blur={2.5} far={3}
-          color="#000000"
-        />
+        {!bgImage && (
+          <ContactShadows
+            position={[0, -1.57, 0]}
+            opacity={0.75} scale={16} blur={2.5} far={3}
+            color="#000000"
+          />
+        )}
       </Suspense>
 
       <OrbitControls

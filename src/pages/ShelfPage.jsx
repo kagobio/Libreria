@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, isConfigured } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import ShelfScene from '../components/shelf/ShelfScene'
@@ -7,8 +7,22 @@ import BookDetailPanel from '../components/ui/BookDetailPanel'
 import AddBookModal from '../components/ui/AddBookModal'
 import FeatureCards from '../components/ui/FeatureCards'
 
+const BG_IMAGE = '/shelf-bg.jpg'
+
+function useBgImageExists(url) {
+  const [exists, setExists] = useState(false)
+  useEffect(() => {
+    const img = new Image()
+    img.onload  = () => setExists(true)
+    img.onerror = () => setExists(false)
+    img.src = url
+  }, [url])
+  return exists
+}
+
 export default function ShelfPage() {
   const { user } = useAuth()
+  const bgExists = useBgImageExists(BG_IMAGE)
   const [books, setBooks] = useState([])
   const [selectedBook, setSelectedBook] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -104,14 +118,23 @@ export default function ShelfPage() {
               </p>
             </div>
           ) : (
-            <div className="relative w-full h-full">
+            <div
+              className="relative w-full h-full"
+              style={bgExists ? {
+                backgroundImage: `url('${BG_IMAGE}')`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+              } : {}}
+            >
               <ShelfScene
                 books={books}
                 selectedBook={selectedBook}
                 onBookClick={handleBookClick}
+                bgImage={bgExists}
               />
               {/* CSS vignette overlay */}
-              <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.75) 100%)' }} />
+              <div className="absolute inset-0 pointer-events-none" style={{ background: bgExists ? 'radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.55) 100%)' : 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.75) 100%)' }} />
               <FeatureCards visible={!selectedBook} />
             </div>
           )}
